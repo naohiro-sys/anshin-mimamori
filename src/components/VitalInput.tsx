@@ -1,18 +1,41 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Plus, Minus } from "lucide-react";
+import { Check, Plus, Minus, Loader2 } from "lucide-react";
+import { db, auth } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { signInAnonymously } from "firebase/auth";
 
 export default function VitalInput() {
     const [value, setValue] = useState(36.5);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const increment = () => setValue((prev) => parseFloat((prev + 0.1).toFixed(1)));
     const decrement = () => setValue((prev) => parseFloat((prev - 0.1).toFixed(1)));
 
-    const handleSubmit = () => {
-        setIsSubmitted(true);
-        // TODO: API integration
+    const handleSubmit = async () => {
+        setIsLoading(true);
+        try {
+            // Ensure user is signed in (anonymously)
+            let user = auth.currentUser;
+            if (!user) {
+                const userCredential = await signInAnonymously(auth);
+                user = userCredential.user;
+            }
+
+            await addDoc(collection(db, "users", user.uid, "vitals"), {
+                temperature: value,
+                timestamp: serverTimestamp(),
+            });
+
+            setIsSubmitted(true);
+        } catch (error) {
+            console.error("Error adding document: ", error);
+            alert("送信に失敗しました。もう一度お試しください。");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -45,6 +68,7 @@ export default function VitalInput() {
                             onClick={decrement}
                             className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center active:bg-slate-300 transition-colors shadow-sm"
                             aria-label="減らす"
+                            disabled={isLoading}
                         >
                             <Minus size={32} className="text-slate-700" />
                         </button>
@@ -53,6 +77,7 @@ export default function VitalInput() {
                             onClick={increment}
                             className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center active:bg-slate-300 transition-colors shadow-sm"
                             aria-label="増やす"
+                            disabled={isLoading}
                         >
                             <Plus size={32} className="text-slate-700" />
                         </button>
@@ -60,9 +85,10 @@ export default function VitalInput() {
 
                     <button
                         onClick={handleSubmit}
-                        className="w-full py-4 bg-blue-600 text-white text-xl font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all mt-2"
+                        disabled={isLoading}
+                        className="w-full py-4 bg-blue-600 text-white text-xl font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all mt-2 flex items-center justify-center disabled:opacity-70"
                     >
-                        記録する
+                        {isLoading ? <Loader2 className="animate-spin" /> : "記録する"}
                     </button>
                 </div>
             )}
